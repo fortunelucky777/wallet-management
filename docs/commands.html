@@ -1,0 +1,510 @@
+<title>walletcli Reference</title>
+<style>
+  :root {
+    --bg: #F7F6FB;
+    --panel: #FFFFFF;
+    --ink: #22202E;
+    --muted: #6E6A80;
+    --line: #E3E0EC;
+    --mag: #A626D9;
+    --cyn: #0FA8BC;
+    --green: #1E8E4D;
+    --amber: #9A7514;
+    --red: #C03434;
+    --chip-bg: #EFEDF7;
+    --t-bg: #12111A;
+    --t-head: #1B1A26;
+    --t-ink: #D8D5E6;
+    --t-dim: #7C7894;
+    --t-mag: #D26BFF;
+    --t-cyn: #4DD8E6;
+    --t-grn: #5FD68A;
+    --t-amb: #E4C464;
+    --mono: ui-monospace, "JetBrains Mono", "Cascadia Code", "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0F0F16;
+      --panel: #171622;
+      --ink: #E9E7F2;
+      --muted: #8D89A3;
+      --line: #272536;
+      --mag: #D26BFF;
+      --cyn: #4DD8E6;
+      --green: #5FD68A;
+      --amber: #E4C464;
+      --red: #F07878;
+      --chip-bg: #201F2E;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0F0F16;
+    --panel: #171622;
+    --ink: #E9E7F2;
+    --muted: #8D89A3;
+    --line: #272536;
+    --mag: #D26BFF;
+    --cyn: #4DD8E6;
+    --green: #5FD68A;
+    --amber: #E4C464;
+    --red: #F07878;
+    --chip-bg: #201F2E;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    font-size: 16px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------------------------------------------------------------- hero */
+  header { padding: 56px 0 8px; }
+  .banner {
+    font-family: var(--mono);
+    font-size: clamp(6px, 1.55vw, 13px);
+    line-height: 1.18;
+    white-space: pre;
+    overflow-x: auto;
+    background: linear-gradient(100deg, var(--mag) 10%, var(--cyn) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin: 0 0 14px;
+    font-weight: 700;
+  }
+  .tagline { font-size: 1.12rem; color: var(--muted); margin: 0 0 18px; max-width: 62ch; text-wrap: balance; }
+  .tagline strong { color: var(--ink); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+  .chip {
+    font-family: var(--mono); font-size: .78rem; letter-spacing: .02em;
+    background: var(--chip-bg); color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px;
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  /* ------------------------------------------------------------- layout */
+  .grid { display: grid; grid-template-columns: 218px minmax(0, 1fr); gap: 40px; align-items: start; margin-top: 40px; }
+  nav.toc { position: sticky; top: 24px; }
+  nav.toc h2 {
+    font-family: var(--mono); font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .14em; color: var(--muted); margin: 0 0 10px; font-weight: 600;
+  }
+  nav.toc ol { list-style: none; margin: 0 0 22px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  nav.toc a {
+    display: block; font-family: var(--mono); font-size: .84rem;
+    color: var(--muted); text-decoration: none; padding: 3px 10px;
+    border-left: 2px solid var(--line); transition: color .12s, border-color .12s;
+  }
+  nav.toc a:hover, nav.toc a:focus-visible { color: var(--cyn); border-left-color: var(--cyn); outline: none; }
+  @media (max-width: 880px) {
+    .grid { grid-template-columns: 1fr; gap: 8px; }
+    nav.toc { position: static; }
+    nav.toc ol { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+    nav.toc a { border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; }
+  }
+
+  /* ----------------------------------------------------------- sections */
+  main { min-width: 0; }
+  section { margin: 0 0 52px; }
+  h2.sect {
+    font-family: var(--mono); font-size: .78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .16em; color: var(--mag);
+    border-bottom: 1px solid var(--line); padding-bottom: 8px; margin: 0 0 22px;
+  }
+  article.cmd { margin: 0 0 40px; scroll-margin-top: 20px; }
+  h3.cmdname { font-family: var(--mono); font-size: 1.18rem; margin: 0 0 2px; font-weight: 700; }
+  h3.cmdname .p { color: var(--muted); font-weight: 400; }
+  h3.cmdname .w { color: var(--cyn); }
+  h3.cmdname .s { color: var(--ink); }
+  h3.cmdname .arg { color: var(--muted); font-weight: 400; font-size: .95rem; }
+  .purpose { color: var(--muted); margin: 0 0 14px; max-width: 68ch; }
+  .purpose strong { color: var(--ink); font-weight: 600; }
+  p { max-width: 68ch; }
+
+  /* --------------------------------------------------------------- tables */
+  .tblwrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+  th {
+    text-align: left; font-family: var(--mono); font-size: .7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .1em; color: var(--muted);
+    padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--panel);
+  }
+  td { padding: 8px 14px; border-bottom: 1px solid var(--line); vertical-align: top; background: var(--panel); }
+  tr:last-child td { border-bottom: none; }
+  td.mono, code { font-family: var(--mono); font-size: .85em; }
+  td.mono { white-space: nowrap; color: var(--cyn); font-variant-numeric: tabular-nums; }
+  code {
+    background: var(--chip-bg); border: 1px solid var(--line);
+    border-radius: 5px; padding: 1px 6px; color: var(--ink);
+  }
+  .req { color: var(--amber); font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; }
+
+  /* ------------------------------------------------------------ terminal */
+  .term {
+    background: var(--t-bg); border-radius: 10px; margin: 0 0 16px;
+    border: 1px solid rgba(120,115,150,.25);
+    box-shadow: 0 6px 24px rgba(10,8,20,.18);
+  }
+  .term-head {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--t-head); border-radius: 10px 10px 0 0; padding: 8px 14px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; opacity: .85; }
+  .dot:nth-child(1) { background: #E0655A; } .dot:nth-child(2) { background: #E0B25A; } .dot:nth-child(3) { background: #6BC96B; }
+  .term-title { margin-left: 8px; font-family: var(--mono); font-size: .72rem; color: var(--t-dim); }
+  .term pre {
+    margin: 0; padding: 14px 18px; overflow-x: auto;
+    font-family: var(--mono); font-size: .82rem; line-height: 1.5; color: var(--t-ink);
+  }
+  .g { color: var(--t-grn); } .c { color: var(--t-cyn); } .m { color: var(--t-mag); }
+  .y { color: var(--t-amb); } .d { color: var(--t-dim); }
+
+  .callout {
+    border: 1px solid var(--line); border-left: 3px solid var(--amber);
+    background: var(--panel); border-radius: 8px; padding: 12px 16px;
+    font-size: .92rem; color: var(--muted); margin: 0 0 16px; max-width: 72ch;
+  }
+  .callout.ok { border-left-color: var(--green); }
+  .callout b, .callout strong { color: var(--ink); }
+  a { color: var(--cyn); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+<header>
+  <pre class="banner">██╗    ██╗ █████╗ ██╗     ██╗     ███████╗████████╗
+██║    ██║██╔══██╗██║     ██║     ██╔════╝╚══██╔══╝
+██║ █╗ ██║███████║██║     ██║     █████╗     ██║
+██║███╗██║██╔══██║██║     ██║     ██╔══╝     ██║
+╚███╔███╔╝██║  ██║███████╗███████╗███████╗   ██║
+ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝   ╚═╝</pre>
+  <p class="tagline"><strong>walletcli</strong> — a self-custody terminal wallet for Ethereum ✦ Tron.
+  Send and swap ETH, TRX, USDT &amp; USDC with an Argon2id + AES-256-GCM encrypted vault.</p>
+  <div class="chips">
+    <span class="chip"><b>v1.1.0</b></span>
+    <span class="chip">Python <b>3.10+</b></span>
+    <span class="chip">chains <b>Ethereum · Tron</b></span>
+    <span class="chip">assets <b>ETH · TRX · USDT · USDC</b></span>
+    <span class="chip"><b>MIT</b></span>
+  </div>
+</header>
+
+<div class="grid">
+<nav class="toc" aria-label="Command index">
+  <h2>Setup</h2>
+  <ol>
+    <li><a href="#install">install</a></li>
+    <li><a href="#quickstart">quickstart</a></li>
+  </ol>
+  <h2>Commands</h2>
+  <ol>
+    <li><a href="#overview">wallet</a></li>
+    <li><a href="#register">register</a></li>
+    <li><a href="#list">list</a></li>
+    <li><a href="#show">show</a></li>
+    <li><a href="#balance">balance</a></li>
+    <li><a href="#send">send</a></li>
+    <li><a href="#swap">swap</a></li>
+    <li><a href="#swap-status">swap-status</a></li>
+    <li><a href="#address">address</a></li>
+    <li><a href="#export">export</a></li>
+    <li><a href="#remove">remove</a></li>
+    <li><a href="#config">config</a></li>
+    <li><a href="#doctor">doctor</a></li>
+  </ol>
+  <h2>Reference</h2>
+  <ol>
+    <li><a href="#assets">asset keys</a></li>
+    <li><a href="#env">environment</a></li>
+    <li><a href="#exit">exit codes</a></li>
+    <li><a href="#security">security</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<section id="install">
+  <h2 class="sect">Install</h2>
+  <p>One command. The installer finds Python&nbsp;3.10+, builds an isolated environment in
+  <code>~/.walletcli/venv</code>, and links <code>wallet</code> onto your PATH.</p>
+  <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">install</span></div>
+<pre><span class="g">$</span> git clone &lt;repo&gt; &amp;&amp; cd wallet-management &amp;&amp; <span class="c">./install.sh</span>
+<span class="g">✔</span> Using Python 3.12 · <span class="g">✔</span> Installed walletcli 1.0.0 · <span class="g">✔</span> Linked ~/.local/bin/wallet
+
+<span class="d"># remove the tool (never touches your vault):</span>
+<span class="g">$</span> <span class="c">./install.sh</span> --uninstall</pre></div>
+</section>
+
+<section id="quickstart">
+  <h2 class="sect">Quickstart</h2>
+  <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">first five minutes</span></div>
+<pre><span class="g">$</span> <span class="c">wallet register</span>          <span class="d"># create or import a wallet — guided</span>
+<span class="g">$</span> <span class="c">wallet balance</span>           <span class="d"># six assets, one table</span>
+<span class="g">$</span> <span class="c">wallet send</span>              <span class="d"># transfer with fee preview + review screen</span>
+<span class="g">$</span> <span class="c">wallet swap</span>              <span class="d"># USDT-ERC20 ⇄ USDT-TRC20 and friends</span>
+<span class="g">$</span> <span class="c">wallet</span>                   <span class="d"># overview of everything below</span></pre></div>
+  <div class="callout ok"><b>Every command is interactive.</b> Run it with no flags and follow the prompts —
+  flags exist so the same command can be scripted. <code>--help</code> works everywhere.</div>
+</section>
+
+<section>
+  <h2 class="sect">Commands</h2>
+
+  <article class="cmd" id="overview">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span></h3>
+    <p class="purpose">With no arguments: vault status and a table of every command.
+    <code>--version</code>/<code>-V</code> prints the version.</p>
+  </article>
+
+  <article class="cmd" id="register">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">register</span></h3>
+    <p class="purpose">Create a <strong>new</strong> wallet (fresh BIP39 phrase) or <strong>import</strong> an existing
+    12–24-word phrase. One mnemonic derives both accounts — Ethereum (<code>m/44'/60'/0'/0/0</code>) and
+    Tron (<code>m/44'/195'/0'/0/0</code>) — then everything is encrypted into the vault under your passphrase.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Option</th><th>Description</th></tr>
+      <tr><td class="mono">--name, -n</td><td>Wallet name (letters, digits, <code>. _ -</code>, max 32 chars)</td></tr>
+      <tr><td class="mono">--words</td><td>Phrase length for new wallets: 12 / 15 / 18 / 21 / 24 (default 24)</td></tr>
+      <tr><td class="mono">--mnemonic</td><td>Import this phrase non-interactively <span class="req">CAREFUL — shell history</span></td></tr>
+      <tr><td class="mono">--yes, -y</td><td>Skip the written-backup verification quiz</td></tr>
+    </table></div>
+    <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">wallet register</span></div>
+<pre><span class="g">$</span> <span class="c">wallet register</span>
+<span class="c">?</span> Wallet name <span class="d">(e.g. main, savings)</span>: <span class="y">main</span>
+<span class="c">?</span> Create a brand-new wallet, or import an existing phrase?
+    <span class="m">1</span>  Create new — generate a fresh recovery phrase <span class="d">(recommended)</span>
+    <span class="m">2</span>  Import — I already have a 12–24 word phrase
+<span class="m">╭──────────────────────── 🔐 Recovery phrase ────────────────────────╮</span>
+<span class="m">│</span>  Write these words down on paper, in order.                        <span class="m">│</span>
+<span class="m">│</span>   1 bread    7 loyal   13 tower   19 lemon   ...                   <span class="m">│</span>
+<span class="m">╰────────────────────────────────────────────────────────────────────╯</span>
+<span class="c">?</span> Word #7: <span class="y">loyal</span>          <span class="d"># backup quiz — two random words</span>
+<span class="c">🔑</span> Passphrase: <span class="d">********</span>   <span class="d"># encrypts the vault; never stored</span>
+<span class="g">✔</span> Wallet <span class="c">main</span> registered and encrypted in ~/.walletcli/vault.json
+<span class="c">╭──────────────────────── 👛 main ─────────────────────╮</span>
+<span class="c">│</span> Ethereum  0x9858EfFD232B4033E47d90003D41EC34EcaEda94 <span class="c">│</span>
+<span class="c">│</span>     Tron  TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH         <span class="c">│</span>
+<span class="c">╰──────────────────────────────────────────────────────╯</span></pre></div>
+    <div class="callout ok"><b>Hidden import:</b> when importing, the phrase is typed or pasted with
+    echo disabled — nothing appears on screen or in terminal scrollback. The BIP39 checksum is
+    validated before anything is stored, and you're re-prompted on a typo.</div>
+    <div class="callout">An optional <b>BIP39 passphrase</b> ("25th word") can be added in the advanced step —
+    it changes every derived address and becomes part of your backup.</div>
+  </article>
+
+  <article class="cmd" id="list">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">list</span></h3>
+    <p class="purpose">All registered wallets: name, shortened addresses, creation date, vault location.</p>
+  </article>
+
+  <article class="cmd" id="show">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">show</span> <span class="arg">[NAME]</span></h3>
+    <p class="purpose">Receive addresses for a wallet. ETH + ERC20 tokens go to the Ethereum address;
+    TRX + TRC20 tokens to the Tron address.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Option</th><th>Description</th></tr>
+      <tr><td class="mono">--qr</td><td>Also print scannable QR codes for both addresses</td></tr>
+    </table></div>
+  </article>
+
+  <article class="cmd" id="balance">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">balance</span> <span class="arg">[NAME]</span></h3>
+    <p class="purpose">Live balances for all six assets, fetched from both chains in parallel.
+    No passphrase needed — balances are public information.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Option</th><th>Description</th></tr>
+      <tr><td class="mono">--asset, -a</td><td>Only one asset (see <a href="#assets">asset keys</a>)</td></tr>
+    </table></div>
+    <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">wallet balance main</span></div>
+<pre><span class="g">$</span> <span class="c">wallet balance</span> main
+                     <span class="y">💰 main</span>
+ Asset            Network     Balance   Address
+ ETH  <span class="d">eth</span>         Ethereum  <span class="g">0.42 ETH</span>   0x9858Ef…aEda94
+ USDT <span class="d">usdt-erc20</span>  Ethereum  <span class="g">1,250 USDT</span> 0x9858Ef…aEda94
+ USDC <span class="d">usdc-erc20</span>  Ethereum  <span class="d">0 USDC</span>     0x9858Ef…aEda94
+ TRX  <span class="d">trx</span>         Tron      <span class="g">310 TRX</span>    TUEZSdKs…hGWYdH
+ USDT <span class="d">usdt-trc20</span>  Tron      <span class="g">500 USDT</span>   TUEZSdKs…hGWYdH
+ USDC <span class="d">usdc-trc20</span>  Tron      <span class="d">0 USDC</span>     TUEZSdKs…hGWYdH</pre></div>
+  </article>
+
+  <article class="cmd" id="send">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">send</span></h3>
+    <p class="purpose">Transfer any supported asset. The flow checks your balance, estimates the network
+    fee (EIP-1559 on Ethereum, energy fee-limit on Tron), shows a <strong>review panel</strong>, and only asks for
+    your passphrase after you confirm. Keys are derived in memory, used once, and discarded.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Option</th><th>Description</th></tr>
+      <tr><td class="mono">--wallet, -w</td><td>Wallet to send from</td></tr>
+      <tr><td class="mono">--asset, -a</td><td>Asset key, e.g. <code>usdt-trc20</code></td></tr>
+      <tr><td class="mono">--to, -t</td><td>Recipient address <em>or a saved alias</em> (validated per chain)</td></tr>
+      <tr><td class="mono">--amount, -m</td><td>Amount to send</td></tr>
+      <tr><td class="mono">--yes, -y</td><td>Skip the confirmation prompt</td></tr>
+    </table></div>
+    <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">wallet send</span></div>
+<pre><span class="g">$</span> <span class="c">wallet send</span> -w main -a usdt-trc20 -t TN9RRaXkCFtTXRso2GdTZxSxxwufzxLQPP -m 250
+<span class="d">›</span> Available: <span class="g">500 USDT</span>
+<span class="y">╭───────────────── Review before sending ─────────────────╮</span>
+<span class="y">│</span>        From  main  TUEZSdKs…hGWYdH                      <span class="y">│</span>
+<span class="y">│</span>          To  TN9RRaXk…zxLQPP                            <span class="y">│</span>
+<span class="y">│</span>      Amount  <span class="g">250 USDT</span>  <span class="d">(USDT · Tron TRC20)</span>              <span class="y">│</span>
+<span class="y">│</span> Network fee  up to 100 TRX burned for Energy <span class="d">(cap)</span>      <span class="y">│</span>
+<span class="y">╰─────────────────────────────────────────────────────────╯</span>
+<span class="c">?</span> Broadcast this transaction? <span class="d">[y/n]</span>: <span class="y">y</span>
+<span class="c">🔑</span> Passphrase: <span class="d">********</span>
+<span class="g">✔ Transaction broadcast</span> · tx <span class="c">7f3a…c21b</span> · tronscan.org/#/transaction/7f3a…</pre></div>
+  </article>
+
+  <article class="cmd" id="swap">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">swap</span></h3>
+    <p class="purpose">Cross-chain swap (ERC20 ⇄ TRC20) through ChangeNOW, a non-custodial instant
+    exchange. You get a quote, a one-time deposit address is created, walletcli can send the deposit
+    for you, and the payout lands on <strong>your own address</strong> on the destination chain — tracked live.
+    Requires a free API key: <code>wallet config set changenow_api_key &lt;key&gt;</code>.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Option</th><th>Description</th></tr>
+      <tr><td class="mono">--wallet, -w</td><td>Wallet to swap with</td></tr>
+      <tr><td class="mono">--from, -f</td><td>Asset to swap from, e.g. <code>usdt-erc20</code></td></tr>
+      <tr><td class="mono">--to, -t</td><td>Asset to receive, e.g. <code>usdt-trc20</code> (must be the other chain)</td></tr>
+      <tr><td class="mono">--amount, -m</td><td>Amount to swap</td></tr>
+      <tr><td class="mono">--yes, -y</td><td>Skip confirmations (auto-sends the deposit)</td></tr>
+    </table></div>
+    <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">wallet swap</span></div>
+<pre><span class="g">$</span> <span class="c">wallet swap</span> -f usdt-erc20 -t usdt-trc20 -m 500
+<span class="c">╭───────────────────── Swap quote ─────────────────────╮</span>
+<span class="c">│</span>    You send  <span class="g">500 USDT</span>  <span class="d">USDT · Ethereum ERC20</span>         <span class="c">│</span>
+<span class="c">│</span> You receive  <span class="g">≈ 493.7 USDT</span>  <span class="d">USDT · Tron TRC20</span>        <span class="c">│</span>
+<span class="c">│</span>        Rate  1 USDT ≈ 0.9874 USDT <span class="d">(fees included)</span>    <span class="c">│</span>
+<span class="c">│</span>   Payout to  TUEZSdKs…hGWYdH <span class="d">(your main wallet)</span>      <span class="c">│</span>
+<span class="c">╰──────────────────────────────────────────────────────╯</span>
+<span class="c">?</span> Create this swap order? <span class="d">[y/n]</span>: <span class="y">y</span>
+<span class="g">✔</span> Order <span class="c">a1b2c3d4e5</span> created — deposit address ready
+<span class="c">?</span> Send the USDT deposit from wallet 'main' now? <span class="d">[Y/n]</span>: <span class="y">y</span>
+<span class="g">✔ Transaction broadcast</span>
+  <span class="d">14:02:11</span> waiting for your deposit
+  <span class="d">14:05:37</span> deposit confirming on-chain
+  <span class="d">14:12:03</span> exchanging → sending funds to your wallet
+<span class="g">✔ Swap complete</span> — 493.7 USDT delivered to your wallet.</pre></div>
+  </article>
+
+  <article class="cmd" id="swap-status">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">swap-status</span> <span class="arg">ORDER_ID</span></h3>
+    <p class="purpose">Check a swap order once, or follow it with <code>--watch</code> until it completes.
+    Useful after pressing Ctrl-C during a swap — orders keep processing server-side.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Option</th><th>Description</th></tr>
+      <tr><td class="mono">--watch</td><td>Poll every 8 s until finished / failed (45 min cap)</td></tr>
+    </table></div>
+  </article>
+
+  <article class="cmd" id="address">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">address</span> <span class="arg">add | list | remove</span></h3>
+    <p class="purpose">Address book: save recipient addresses under human aliases and use the alias
+    anywhere an address is asked — including <code>wallet send --to mom</code> and the interactive
+    recipient picker. The network is detected automatically from the address format, and sending an
+    asset to an alias on the wrong chain is blocked with a clear error. After a successful send to a
+    new address, walletcli offers to save it. Stored in <code>~/.walletcli/addressbook.json</code>.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Subcommand</th><th>Description</th></tr>
+      <tr><td class="mono">add [ALIAS] [ADDRESS]</td><td>Save a contact (interactive when arguments are omitted)</td></tr>
+      <tr><td class="mono">list</td><td>All contacts: alias, network, full address, date added</td></tr>
+      <tr><td class="mono">remove ALIAS [--yes]</td><td>Delete a contact (asks first)</td></tr>
+    </table></div>
+    <div class="term"><div class="term-head"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="term-title">wallet address</span></div>
+<pre><span class="g">$</span> <span class="c">wallet address add</span> mom TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH
+<span class="g">✔ Contact saved</span> · mom → TUEZSdKs…hGWYdH <span class="d">(Tron)</span>
+
+<span class="g">$</span> <span class="c">wallet send</span> -a usdt-trc20 --to <span class="y">mom</span> -m 50
+<span class="d">›</span> Alias <span class="c">mom</span> → TUEZSdKsoDHQMeZwihtdoBiN46zxhGWYdH
+<span class="d">…review panel, confirm, broadcast…</span></pre></div>
+  </article>
+
+  <article class="cmd" id="export">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">export</span> <span class="arg">[NAME]</span></h3>
+    <p class="purpose">Reveal a wallet's recovery phrase after passphrase verification —
+    for restoring into MetaMask, TronLink, or a hardware wallet. Warns first; make sure no one
+    can see your screen.</p>
+  </article>
+
+  <article class="cmd" id="remove">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">remove</span> <span class="arg">[NAME]</span></h3>
+    <p class="purpose">Delete a wallet's encrypted entry from the vault. Funds stay on-chain — but
+    without a written backup of the phrase they become unreachable, so the command makes you
+    type the wallet's name to confirm (<code>--yes</code>/<code>-y</code> skips).</p>
+  </article>
+
+  <article class="cmd" id="config">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">config</span> <span class="arg">show | set KEY VALUE | path</span></h3>
+    <p class="purpose">View or change settings stored in <code>~/.walletcli/config.toml</code>.
+    API keys are masked in <code>show</code>.</p>
+    <div class="tblwrap"><table>
+      <tr><th>Key</th><th>Default</th><th>Notes</th></tr>
+      <tr><td class="mono">eth_rpc_url</td><td>publicnode.com</td><td>any Ethereum JSON-RPC endpoint</td></tr>
+      <tr><td class="mono">tron_api_url</td><td>api.trongrid.io</td><td>Tron full-node HTTP API</td></tr>
+      <tr><td class="mono">tron_api_key</td><td><span class="req">unset</span></td><td>free at trongrid.io — avoids 429 rate limits</td></tr>
+      <tr><td class="mono">tron_fee_limit_trx</td><td>100</td><td>max TRX burned per TRC20 transfer</td></tr>
+      <tr><td class="mono">changenow_api_key</td><td><span class="req">unset</span></td><td>free at changenow.io/api — required for <code>swap</code></td></tr>
+    </table></div>
+  </article>
+
+  <article class="cmd" id="doctor">
+    <h3 class="cmdname"><span class="p">$</span> <span class="w">wallet</span> <span class="s">doctor</span></h3>
+    <p class="purpose">Setup health check: Python version, vault integrity, Ethereum RPC and Tron API
+    connectivity (with live block numbers), swap API key presence.</p>
+  </article>
+</section>
+
+<section id="assets">
+  <h2 class="sect">Asset keys</h2>
+  <div class="tblwrap"><table>
+    <tr><th>Key</th><th>Asset</th><th>Network</th><th>Decimals</th><th>Contract</th></tr>
+    <tr><td class="mono">eth</td><td>Ether</td><td>Ethereum</td><td>18</td><td>native</td></tr>
+    <tr><td class="mono">usdt-erc20</td><td>Tether USD</td><td>Ethereum</td><td>6</td><td><code>0xdAC17F…31ec7</code></td></tr>
+    <tr><td class="mono">usdc-erc20</td><td>USD Coin</td><td>Ethereum</td><td>6</td><td><code>0xA0b869…06eB48</code></td></tr>
+    <tr><td class="mono">trx</td><td>Tron</td><td>Tron</td><td>6</td><td>native</td></tr>
+    <tr><td class="mono">usdt-trc20</td><td>Tether USD</td><td>Tron</td><td>6</td><td><code>TR7NHq…zgjLj6t</code></td></tr>
+    <tr><td class="mono">usdc-trc20</td><td>USD Coin</td><td>Tron</td><td>6</td><td><code>TEkxiT…966rdz8</code></td></tr>
+  </table></div>
+</section>
+
+<section id="env">
+  <h2 class="sect">Environment variables</h2>
+  <div class="tblwrap"><table>
+    <tr><th>Variable</th><th>Purpose</th></tr>
+    <tr><td class="mono">WALLETCLI_HOME</td><td>Relocate the vault + config directory (default <code>~/.walletcli</code>)</td></tr>
+    <tr><td class="mono">WALLETCLI_PASSPHRASE</td><td>Supply the passphrase for scripts/CI <span class="req">AUTOMATION ONLY</span></td></tr>
+  </table></div>
+</section>
+
+<section id="exit">
+  <h2 class="sect">Exit codes</h2>
+  <div class="tblwrap"><table>
+    <tr><th>Code</th><th>Meaning</th></tr>
+    <tr><td class="mono">0</td><td>Success</td></tr>
+    <tr><td class="mono">1</td><td>Vault / network / swap error (message shown in a red panel)</td></tr>
+    <tr><td class="mono">2</td><td>Interactive input needed but stdin is not a terminal</td></tr>
+    <tr><td class="mono">3</td><td>Wrong passphrase (or tampered vault entry)</td></tr>
+    <tr><td class="mono">130</td><td>Cancelled with Ctrl-C — nothing sent or saved</td></tr>
+  </table></div>
+</section>
+
+<section id="security">
+  <h2 class="sect">Security</h2>
+  <p>Secrets are sealed per wallet with <strong>AES-256-GCM</strong> under a key derived by
+  <strong>Argon2id</strong> (3 iterations · 128 MiB · 4 lanes). The passphrase is never stored;
+  entries are cryptographically bound to their wallet names, so tampering and blob-swapping are
+  detected. Vault files are written atomically with <code>0600</code> permissions.
+  A stolen vault file is computationally useless without the passphrase.</p>
+  <div class="callout"><b>Honest limits:</b> no software wallet can defend an actively compromised
+  machine — a keylogger captures passphrases as they're typed. For significant funds, use a
+  hardware wallet, and keep the recovery phrase on paper only.</div>
+</section>
+
+</main>
+</div>
+</div>
