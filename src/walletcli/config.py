@@ -11,8 +11,9 @@ overridable with the ``WALLETCLI_HOME`` environment variable):
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
 try:
     import tomllib
@@ -38,6 +39,49 @@ def config_path() -> Path:
     return wallet_home() / "config.toml"
 
 
+def write_private_text(path: Path, text: str) -> None:
+    """Atomically write ``text`` to ``path`` so it is never world-readable.
+
+    The parent directory is (re-)hardened to 0700 and the temp file is created
+    with 0600 *before* any data is written — closing the umask race where a
+    ``write_text`` + later ``chmod`` briefly leaves secrets at 0644 on a
+    predictable ``*.tmp`` path.
+    """
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(path.parent, 0o700)
+    tmp = path.with_name(path.name + ".tmp")
+    # opener forces 0600 at create time; O_TRUNC in case a stale tmp survives.
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+    os.replace(tmp, path)
+
+
+def mask_endpoint(url: str) -> str:
+    """Hide any API key embedded in a provider URL's path/query.
+
+    Infura/Alchemy endpoints carry the secret in the path
+    (``https://mainnet.infura.io/v3/<KEY>``); show only scheme + host so the
+    URL can appear in ``config show``/``doctor`` output without leaking it.
+    """
+    if not url:
+        return url
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    if not parts.scheme or not parts.netloc:
+        return url
+    has_secret = (parts.path not in ("", "/")) or bool(parts.query)
+    if not has_secret:
+        return url
+    return urlunsplit((parts.scheme, parts.netloc, "/…", "", ""))
+
+
 @dataclass
 class Config:
     # Ethereum JSON-RPC endpoint. Any provider works (Infura, Alchemy, public).
@@ -52,13 +96,8 @@ class Config:
     changenow_api_key: str = ""
 
     def save(self) -> None:
-        path = config_path()
-        path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         data = {f.name: getattr(self, f.name) for f in fields(self)}
-        tmp = path.with_suffix(".toml.tmp")
-        tmp.write_text(tomli_w.dumps(data), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, path)
+        write_private_text(config_path(), tomli_w.dumps(data))
 
     @classmethod
     def load(cls) -> "Config":

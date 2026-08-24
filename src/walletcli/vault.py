@@ -25,8 +25,8 @@ type); for large holdings use a hardware wallet.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
-import os
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -105,24 +105,64 @@ def encrypt_secret(name: str, payload: dict, passphrase: str) -> dict:
     }
 
 
+# Sanity bounds for KDF parameters read back from the (untrusted) vault file.
+# Upper bounds stop a tampered file from forcing a multi-GiB Argon2 allocation;
+# lower bounds stop a downgraded file from silently weakening the KDF.
+_MAX_MEMORY_COST = 4 * 1024 * 1024  # KiB → 4 GiB ceiling
+_MIN_MEMORY_COST = 8 * 1024         # KiB → 8 MiB floor
+
+
+def _int_param(kdf: dict, key: str, *, minimum: int, maximum: int) -> int:
+    try:
+        value = kdf[key]
+    except (KeyError, TypeError) as exc:
+        raise VaultError(f"Vault entry is corrupt: missing KDF parameter '{key}'.") from exc
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise VaultError(f"Vault entry is corrupt: KDF parameter '{key}' is not an integer.")
+    if not minimum <= value <= maximum:
+        raise VaultError(
+            f"Vault entry is corrupt: KDF parameter '{key}'={value} is outside the "
+            f"accepted range [{minimum}, {maximum}]."
+        )
+    return value
+
+
 def decrypt_secret(name: str, crypto: dict, passphrase: str) -> dict:
-    kdf, cipher = crypto["kdf"], crypto["cipher"]
+    if not isinstance(crypto, dict):
+        raise VaultError("Vault entry is corrupt: missing crypto block.")
+    kdf, cipher = crypto.get("kdf"), crypto.get("cipher")
+    if not isinstance(kdf, dict) or not isinstance(cipher, dict):
+        raise VaultError("Vault entry is corrupt: missing KDF or cipher block.")
+    if kdf.get("name") != "argon2id":
+        raise VaultError(f"Vault entry uses an unsupported KDF: {kdf.get('name')!r}.")
+    if cipher.get("name") != "aes-256-gcm":
+        raise VaultError(f"Vault entry uses an unsupported cipher: {cipher.get('name')!r}.")
+    try:
+        salt = _b64d(kdf["salt"])
+        nonce = _b64d(cipher["nonce"])
+        ciphertext = _b64d(cipher["ciphertext"])
+    except (KeyError, TypeError, ValueError, binascii.Error) as exc:
+        raise VaultError("Vault entry is corrupt: salt/nonce/ciphertext is not valid base64.") from exc
+    if len(nonce) != GCM_NONCE_BYTES:
+        raise VaultError("Vault entry is corrupt: nonce has the wrong length.")
+
     key = _derive_key(
         passphrase,
-        _b64d(kdf["salt"]),
-        time_cost=kdf["time_cost"],
-        memory_cost=kdf["memory_cost"],
-        parallelism=kdf["parallelism"],
+        salt,
+        time_cost=_int_param(kdf, "time_cost", minimum=1, maximum=64),
+        memory_cost=_int_param(kdf, "memory_cost", minimum=_MIN_MEMORY_COST, maximum=_MAX_MEMORY_COST),
+        parallelism=_int_param(kdf, "parallelism", minimum=1, maximum=64),
     )
     try:
-        plaintext = AESGCM(key).decrypt(
-            _b64d(cipher["nonce"]), _b64d(cipher["ciphertext"]), _aad(name)
-        )
+        plaintext = AESGCM(key).decrypt(nonce, ciphertext, _aad(name))
     except InvalidTag as exc:
         raise WrongPassphrase(
             "Could not unlock the wallet — wrong passphrase (or the vault file was tampered with)."
         ) from exc
-    return json.loads(plaintext.decode("utf-8"))
+    try:
+        return json.loads(plaintext.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise VaultError("Vault entry decrypted but its contents are corrupt.") from exc
 
 
 @dataclass(frozen=True)
@@ -143,6 +183,24 @@ class Vault:
         self._data: dict = {"version": VAULT_VERSION, "wallets": {}}
         self._load()
 
+    def verify_addresses(self, name: str, keyring) -> None:
+        """Raise if the stored plaintext addresses don't match ``keyring``.
+
+        The addresses live outside the AEAD (so balances work without the
+        passphrase), so this re-derivation is what actually detects a tampered
+        ``eth_address``/``tron_address``. Both chains are checked.
+        """
+        entry = self._entry(name)
+        for label, derived, stored in (
+            ("Ethereum", keyring.eth_address, entry["eth_address"]),
+            ("Tron", keyring.tron_address, entry["tron_address"]),
+        ):
+            if derived.lower() != stored.lower():
+                raise VaultError(
+                    f"The stored {label} address for '{name}' does not match the one derived "
+                    "from its recovery phrase — the vault entry may be corrupt or tampered with."
+                )
+
     def _load(self) -> None:
         if not self.path.exists():
             return
@@ -155,12 +213,9 @@ class Vault:
         self._data = data
 
     def _save(self) -> None:
-        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        os.chmod(self.path.parent, 0o700)
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, self.path)
+        from .config import write_private_text
+
+        write_private_text(self.path, json.dumps(self._data, indent=2))
 
     # ------------------------------------------------------------------ API
 

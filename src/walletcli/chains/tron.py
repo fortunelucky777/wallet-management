@@ -144,7 +144,12 @@ class TronChain:
         return self._result(result, txn)
 
     def _result(self, broadcast_result: dict, txn) -> TxResult:
+        # tronpy's broadcast() always injects a local txid before returning, so a
+        # "txid present" test can never detect failure. A genuinely accepted
+        # broadcast reports result==True; anything else (e.g. a node reply of
+        # {"result": false, "message": ...} that tronpy does not classify as an
+        # error) is a rejection we must surface instead of showing a fake success.
+        if broadcast_result.get("result") is not True:
+            raise ChainError(f"Tron network did not accept the transaction: {broadcast_result}")
         txid = broadcast_result.get("txid") or txn.txid
-        if broadcast_result.get("result") is not True and "txid" not in broadcast_result:
-            raise ChainError(f"Tron broadcast failed: {broadcast_result}")
         return TxResult(txid=txid, explorer_url=EXPLORER.format(txid=txid))

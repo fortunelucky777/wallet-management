@@ -13,7 +13,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal
 
 import typer
 from rich.panel import Panel
@@ -26,7 +26,7 @@ from .assets import ASSETS, CHAIN_LABEL, ETHEREUM, TRON, Asset, asset_choices, g
 from .chains.base import ChainError, FeeEstimate, TxResult
 from .chains.ethereum import EthereumChain
 from .chains.tron import TronChain
-from .config import Config, config_path, vault_path, wallet_home
+from .config import Config, config_path, mask_endpoint, vault_path, wallet_home
 from .derivation import derive_keyring, generate_mnemonic, normalize_mnemonic, validate_mnemonic
 from .swap import SwapClient, SwapError
 from .vault import Vault, VaultError, WrongPassphrase
@@ -63,6 +63,17 @@ def guard(fn):
             ui.console.print()
             ui.info("Cancelled — nothing was sent or saved.")
             raise typer.Exit(130)
+        except typer.Exit:
+            raise
+        except Exception as exc:
+            # Safety net: never let a raw traceback reach the screen — its frames
+            # can hold a decrypted mnemonic or private key, and the endpoint URL
+            # (with any embedded API key) leaks through exception messages.
+            ui.error(
+                f"An unexpected error occurred ({type(exc).__name__}): {exc}",
+                title="Unexpected error",
+            )
+            raise typer.Exit(1)
 
     return wrapper
 
@@ -78,13 +89,15 @@ def _tron(cfg: Config) -> TronChain:
 
 
 def fmt(amount: Decimal, max_places: int = 8) -> str:
-    q = amount.quantize(Decimal(1)) if amount == amount.to_integral_value() \
-        else amount.normalize()
-    text = f"{q:,f}"
-    if "." in text:
-        whole, frac = text.split(".")
-        text = f"{whole}.{frac[:max_places]}".rstrip(".")
-    return text
+    if amount == amount.to_integral_value():
+        return f"{amount.quantize(Decimal(1)):,f}"
+    # Round (don't truncate) to max_places: truncation could render a value
+    # strictly smaller than the amount actually being signed and sent, so the
+    # review panel would understate what leaves the wallet.
+    quant = Decimal(1).scaleb(-max_places)
+    rounded = amount.quantize(quant, rounding=ROUND_HALF_UP).normalize()
+    text = f"{rounded:,f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def pick_wallet(vault: Vault, name: str | None, prompt: str = "Which wallet?") -> str:
@@ -133,11 +146,9 @@ def unlock_keyring(vault: Vault, name: str):
     secret = vault.unlock(name, ui.ask_passphrase())
     with ui.spinner("Deriving keys…"):
         keyring = derive_keyring(secret["mnemonic"], secret.get("bip39_passphrase", ""))
-    info = vault.info(name)
-    if keyring.eth_address.lower() != info.eth_address.lower():
-        raise VaultError(
-            "Derived address does not match the stored one — the vault entry is inconsistent."
-        )
+    # Re-derive and check BOTH stored addresses: they live outside the AEAD, so
+    # this is the only thing that detects a tampered eth_address/tron_address.
+    vault.verify_addresses(name, keyring)
     return keyring
 
 
@@ -299,9 +310,14 @@ def register(
                   passphrase=passphrase, eth_address=keyring.eth_address,
                   tron_address=keyring.tron_address)
 
-    if is_new and sys.stdin.isatty() and not yes:
-        ui.console.clear()
-        ui.info("Screen cleared so the recovery phrase is no longer visible.")
+    if is_new and sys.stdin.isatty():
+        if not yes:
+            ui.clear_screen()
+            ui.info("Screen cleared so the recovery phrase is no longer visible.")
+        else:
+            ui.warning(
+                "Your recovery phrase is still visible above (and in this terminal's "
+                "scrollback). Clear your terminal once you have written it down.")
     ui.success(f"Wallet [bold]{name}[/bold] registered and encrypted in [dim]{vault.path}[/dim]")
     ui.addresses_panel(name, keyring.eth_address, keyring.tron_address)
     ui.console.print("[dim]Next:[/dim] [accent]wallet balance[/accent] · "
@@ -467,11 +483,9 @@ def send(
         amount = ui.ask_amount(f"Amount of {asset.symbol} to send", max_value=available)
     else:
         try:
-            amount = Decimal(amount_opt)
-        except InvalidOperation:
-            raise VaultError(f"--amount '{amount_opt}' is not a number.")
-        if amount <= 0 or amount > available:
-            raise ChainError(f"Amount must be between 0 and {fmt(available)} {asset.symbol}.")
+            amount = ui.parse_amount(amount_opt, max_value=available)
+        except ValueError as exc:
+            raise ChainError(f"--amount: {exc}")
 
     # Fee estimate + native-balance sanity checks.
     with ui.spinner("Estimating network fee…"):
@@ -580,11 +594,9 @@ def swap(
         amount = ui.ask_amount(f"Amount of {from_asset.symbol} to swap")
     else:
         try:
-            amount = Decimal(amount_opt)
-        except InvalidOperation:
-            raise SwapError(f"--amount '{amount_opt}' is not a number.")
-    if amount <= 0:
-        raise SwapError("Amount must be greater than zero.")
+            amount = ui.parse_amount(amount_opt)
+        except ValueError as exc:
+            raise SwapError(f"--amount: {exc}")
     if amount > available:
         ui.warning(f"Note: that's more than the wallet holds ({fmt(available)} "
                    f"{from_asset.symbol}) — you'd need to deposit from elsewhere.")
@@ -616,10 +628,35 @@ def swap(
     with ui.spinner("Creating swap order…"):
         order = client.create_order(from_asset, to_asset, amount, destination, source)
 
+    # Never trust the exchange's response blindly with real funds:
+    from_chain = chain_for(cfg, from_asset)
+    try:
+        deposit_address = from_chain.validate_address(order.deposit_address)
+    except ChainError as exc:
+        raise SwapError(
+            f"The swap service returned a deposit address that is not a valid "
+            f"{CHAIN_LABEL[from_asset.chain]} address ({order.deposit_address!r}); "
+            "no funds were sent."
+        ) from exc
+    # The exchange must pay out to OUR address, not one it substituted.
+    if order.payout_address and order.payout_address.lower() != destination.lower():
+        raise SwapError(
+            "The swap service's payout address does not match your wallet "
+            f"({order.payout_address} vs {destination}). No deposit was sent — "
+            "this can indicate a compromised API response."
+        )
+    # The amount it booked must match what we're about to deposit.
+    if order.from_amount != amount:
+        raise SwapError(
+            f"The swap service booked a deposit of {fmt(order.from_amount)} "
+            f"{from_asset.symbol} but you chose {fmt(amount)} {from_asset.symbol}. "
+            "No deposit was sent — re-run the swap to get a fresh quote."
+        )
+
     ui.success(
         f"Order [bold]{order.order_id}[/bold] created.\n"
-        f"Deposit [amount]{fmt(order.from_amount)} {from_asset.symbol}[/amount] "
-        f"({from_asset.label}) to:\n[addr]{order.deposit_address}[/addr]",
+        f"Deposit [amount]{fmt(amount)} {from_asset.symbol}[/amount] "
+        f"({from_asset.label}) to:\n[addr]{deposit_address}[/addr]",
         title="Swap order",
     )
 
@@ -633,18 +670,17 @@ def swap(
                 default=True,
             )
     if auto:
-        chain = chain_for(cfg, from_asset)
         keyring = unlock_keyring(vault, wallet_name)
         key = keyring.eth_private_key if from_asset.chain == ETHEREUM else keyring.tron_private_key
         with ui.spinner("Sending deposit…"):
             if from_asset.is_native:
-                result = chain.send_native(key, order.deposit_address, amount)
+                result = from_chain.send_native(key, deposit_address, amount)
             else:
-                result = chain.send_token(key, from_asset.contract, from_asset.decimals,
-                                          order.deposit_address, amount)
-        tx_success_panel(from_asset, amount, order.deposit_address, result)
+                result = from_chain.send_token(key, from_asset.contract, from_asset.decimals,
+                                               deposit_address, amount)
+        tx_success_panel(from_asset, amount, deposit_address, result)
     else:
-        ui.qr(order.deposit_address, f"Deposit · {from_asset.label}")
+        ui.qr(deposit_address, f"Deposit · {from_asset.label}")
         ui.info("Send the deposit from any wallet, then track it with "
                 f"[accent]wallet swap-status {order.order_id}[/accent]")
 
@@ -728,6 +764,8 @@ def export(name: str = typer.Argument(None, help="Wallet name.")):
     if sys.stdin.isatty() and not ui.confirm("Continue?", default=False):
         raise typer.Exit()
     secret = vault.unlock(wallet_name, ui.ask_passphrase())
+    keyring = derive_keyring(secret["mnemonic"], secret.get("bip39_passphrase", ""))
+    vault.verify_addresses(wallet_name, keyring)
     ui.mnemonic_panel(secret["mnemonic"])
     if secret.get("bip39_passphrase"):
         ui.warning("This wallet ALSO uses a BIP39 passphrase ('25th word'). "
@@ -841,10 +879,13 @@ def config_show():
     table.add_column("Key", style="accent")
     table.add_column("Value")
     secret_keys = {"tron_api_key", "changenow_api_key"}
+    url_keys = {"eth_rpc_url", "tron_api_url"}
     for key in Config.keys():
         value = getattr(cfg, key)
         if key in secret_keys and value:
             value = value[:4] + "…" + value[-2:] if len(str(value)) > 8 else "•••"
+        elif key in url_keys and value:
+            value = mask_endpoint(str(value))
         table.add_row(key, str(value) if value != "" else "[dim](not set)[/dim]")
     ui.console.print(table)
     ui.console.print(f"[dim]File: {config_path()}[/dim]")
@@ -902,18 +943,20 @@ def doctor():
     except VaultError as exc:
         row("vault", False, str(exc))
 
+    eth_url = mask_endpoint(cfg.eth_rpc_url)
+    tron_url = mask_endpoint(cfg.tron_api_url)
     with ui.spinner("Checking Ethereum RPC…"):
         try:
             block = _eth(cfg).w3.eth.block_number
-            row("ethereum", True, f"{cfg.eth_rpc_url} · block {block:,}")
+            row("ethereum", True, f"{eth_url} · block {block:,}")
         except Exception as exc:
-            row("ethereum", False, f"{cfg.eth_rpc_url} · {exc}")
+            row("ethereum", False, f"{eth_url} · {exc}")
     with ui.spinner("Checking Tron API…"):
         try:
             block = _tron(cfg).client.get_latest_block_number()
-            row("tron", True, f"{cfg.tron_api_url} · block {block:,}")
+            row("tron", True, f"{tron_url} · block {block:,}")
         except Exception as exc:
-            row("tron", False, f"{cfg.tron_api_url} · {exc}")
+            row("tron", False, f"{tron_url} · {exc}")
     row("swap api", bool(cfg.changenow_api_key),
         "ChangeNOW key configured" if cfg.changenow_api_key
         else "no key — swaps disabled (wallet config set changenow_api_key <key>)")

@@ -73,6 +73,19 @@ def rule(title: str) -> None:
     console.rule(f"[brand]{title}[/brand]", style="magenta")
 
 
+def clear_screen() -> None:
+    """Clear the visible screen *and* the scrollback buffer.
+
+    ``console.clear()`` emits ESC[2J (viewport only), so the recovery phrase
+    would still be recoverable by scrolling up. ESC[3J additionally purges the
+    scrollback buffer in xterm-compatible terminals.
+    """
+    console.clear()
+    if sys.stdout.isatty():
+        sys.stdout.write("\033[3J")
+        sys.stdout.flush()
+
+
 def require_tty(hint: str) -> None:
     if not sys.stdin.isatty():
         error(
@@ -100,6 +113,16 @@ def ask_passphrase(confirm_new: bool = False) -> str:
     """
     env = os.environ.get(ENV_PASSPHRASE)
     if env is not None:
+        # When creating a new secret, the env value must still clear the bar the
+        # interactive path enforces — otherwise an empty/typo'd variable would
+        # silently seal the vault under a trivially crackable passphrase.
+        if confirm_new and len(env) < 8:
+            error(
+                f"{ENV_PASSPHRASE} must be at least 8 characters to protect a new wallet "
+                f"(got {len(env)}). Refusing to create a wallet with a weak passphrase.",
+                title="Weak passphrase",
+            )
+            raise SystemExit(3)
         return env
     require_tty(f"Set {ENV_PASSPHRASE} for non-interactive use (automation only).")
     while True:
@@ -123,19 +146,37 @@ def ask_hidden(prompt: str) -> str:
 
 def ask_amount(prompt: str, max_value: Decimal | None = None) -> Decimal:
     while True:
-        raw = ask(prompt).strip().replace(",", "")
+        raw = ask(prompt).strip()
         try:
-            value = Decimal(raw)
-        except InvalidOperation:
-            warning(f"'{raw}' is not a number — enter something like 12.5")
-            continue
-        if value <= 0:
-            warning("Amount must be greater than zero.")
-            continue
-        if max_value is not None and value > max_value:
-            warning(f"Amount exceeds available balance ({max_value}).")
+            value = parse_amount(raw, max_value=max_value)
+        except ValueError as exc:
+            warning(str(exc))
             continue
         return value
+
+
+def parse_amount(raw: str, max_value: Decimal | None = None) -> Decimal:
+    """Parse a user/flag-supplied amount, raising ValueError with a clear message.
+
+    A decimal comma is rejected rather than silently stripped: treating ``1,5``
+    as a thousands separator would turn 1.5 into 15 and send 10x the intended
+    amount. NaN/Infinity are rejected too (``Decimal('nan') <= 0`` would raise
+    an uncaught ``InvalidOperation`` deep in the send flow).
+    """
+    text = raw.strip()
+    if "," in text:
+        raise ValueError("Use a dot for decimals (e.g. 12.5), not a comma.")
+    try:
+        value = Decimal(text)
+    except InvalidOperation:
+        raise ValueError(f"'{raw}' is not a number — enter something like 12.5")
+    if not value.is_finite():
+        raise ValueError(f"'{raw}' is not a valid amount.")
+    if value <= 0:
+        raise ValueError("Amount must be greater than zero.")
+    if max_value is not None and value > max_value:
+        raise ValueError(f"Amount exceeds available balance ({max_value}).")
+    return value
 
 
 def choose(title: str, options: list[tuple[str, str]], default: str | None = None) -> str:

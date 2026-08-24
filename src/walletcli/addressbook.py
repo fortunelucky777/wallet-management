@@ -11,7 +11,6 @@ characters, while Tron addresses are 34 and Ethereum addresses 42.
 from __future__ import annotations
 
 import json
-import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -27,22 +26,33 @@ class AddressBookError(Exception):
     """User-readable address-book failure."""
 
 
-def detect_chain(address: str) -> str:
-    """Return ETHEREUM or TRON for a raw address, offline."""
-    from web3 import Web3
+def normalize_address(address: str) -> tuple[str, str]:
+    """Return ``(chain, normalized_address)`` for a raw address, offline.
 
-    if Web3.is_address(address):
-        return ETHEREUM
+    Ethereum addresses are checksum-validated and returned in EIP-55 form, so a
+    mixed-case address with a bad checksum is rejected here rather than stored.
+    """
+    from .chains.ethereum import checksum_address
+
+    try:
+        return ETHEREUM, checksum_address(address)
+    except Exception:
+        pass
     try:
         from tronpy.keys import is_base58check_address
 
         if is_base58check_address(address):
-            return TRON
+            return TRON, address
     except Exception:
         pass
     raise AddressBookError(
         f"'{address}' is not a valid Ethereum (0x…) or Tron (T…) address."
     )
+
+
+def detect_chain(address: str) -> str:
+    """Return ETHEREUM or TRON for a raw address, offline (checksum-validated)."""
+    return normalize_address(address)[0]
 
 
 @dataclass(frozen=True)
@@ -75,11 +85,9 @@ class AddressBook:
         self._data = data
 
     def _save(self) -> None:
-        self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(self._data, indent=2), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        os.replace(tmp, self.path)
+        from .config import write_private_text
+
+        write_private_text(self.path, json.dumps(self._data, indent=2))
 
     # ------------------------------------------------------------------ API
 
@@ -114,9 +122,9 @@ class AddressBook:
                 f"Alias '{alias}' already points to {existing.address} — "
                 f"remove it first with: wallet address remove {alias}"
             )
-        chain = detect_chain(address.strip())
+        chain, normalized = normalize_address(address.strip())
         self._data["entries"][alias] = {
-            "address": address.strip(),
+            "address": normalized,
             "chain": chain,
             "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         }

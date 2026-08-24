@@ -129,7 +129,13 @@ class SwapClient:
     def quote(self, from_asset: Asset, to_asset: Asset, amount: Decimal) -> SwapQuote:
         pair = self._pair(from_asset, to_asset)
         minimum = self._get("/exchange/min-amount", {**pair, "flow": "standard"})
-        min_amount = Decimal(str(minimum.get("minAmount") or 0))
+        raw_min = minimum.get("minAmount") if isinstance(minimum, dict) else None
+        if raw_min is None:
+            raise SwapError(
+                "The swap service did not return a minimum amount for this pair — "
+                "it may be unsupported or temporarily unavailable. No order was created."
+            )
+        min_amount = Decimal(str(raw_min))
         if amount < min_amount:
             raise SwapError(
                 f"Amount too small: minimum for this pair is "
