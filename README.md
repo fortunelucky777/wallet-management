@@ -2,7 +2,7 @@
 
 A beautiful, secure, **self-custody** wallet for your terminal.
 Ethereum ✦ Tron — ETH, TRX, USDT & USDC (ERC20 + TRC20), with encrypted vault
-storage and cross-chain swaps.
+storage and built-in swaps (same-chain and cross-chain).
 
 ```
 ██╗    ██╗ █████╗ ██╗     ██╗     ███████╗████████╗
@@ -23,8 +23,8 @@ storage and cross-chain swaps.
   file is useless without it.
 - **Send** ETH, TRX, USDT & USDC (ERC20 and TRC20) with clear fee estimates
   and a review screen before anything is broadcast.
-- **Swap cross-chain** — USDT/USDC between ERC20 ⇄ TRC20 (and ETH ⇄ TRX) via
-  ChangeNOW, paid out straight to your own wallet.
+- **Swap** — same-chain (e.g. ETH ⇄ USDT-ERC20) or cross-chain (ERC20 ⇄ TRC20)
+  via ChangeNOW, paid out straight to your own wallet.
 - **Address book** — save recipients under aliases (`wallet address add mom T…`)
   and send with `--to mom`; wrong-chain aliases are blocked automatically.
 - **Gorgeous UX** — every command is fully interactive: menus, spinners,
@@ -55,7 +55,7 @@ pip install --user .
 wallet register        # create (or import) a wallet — guided, ~1 minute
 wallet balance         # ETH, TRX, USDT & USDC balances in one table
 wallet send            # guided transfer with fee preview
-wallet swap            # USDT-ERC20 → USDT-TRC20 and friends
+wallet swap            # ETH → USDT-ERC20, USDT-ERC20 → USDT-TRC20, …
 wallet                 # overview of every command
 ```
 
@@ -71,7 +71,7 @@ Every command also takes flags for scripting (`wallet send --help`).
 | `wallet show <name> [--qr]` | Receive addresses, optionally as QR codes |
 | `wallet balance [name] [-a asset]` | Balances for all six assets |
 | `wallet send` | Send `eth`, `trx`, `usdt-erc20`, `usdc-erc20`, `usdt-trc20`, `usdc-trc20` |
-| `wallet swap` | Cross-chain swap (ERC20 ⇄ TRC20) with live order tracking |
+| `wallet swap` | Swap assets (same-chain or ERC20 ⇄ TRC20) with live order tracking |
 | `wallet swap-status <id> [--watch]` | Check or watch a swap order |
 | `wallet address add/list/remove` | Address book — save recipients as aliases, then `wallet send --to mom` |
 | `wallet export <name>` | Reveal the recovery phrase (passphrase required) |
@@ -125,7 +125,8 @@ Practical hygiene the CLI enforces or encourages:
 
 ## 🔄 How swaps work
 
-Cross-chain swaps use ChangeNOW (a non-custodial instant exchange):
+Swaps — same-chain (ETH → USDT-ERC20) or cross-chain (USDT-ERC20 →
+USDT-TRC20) — use ChangeNOW (a non-custodial instant exchange):
 
 1. `wallet swap` quotes the pair and creates an order → you get a one-time
    **deposit address** on the source chain.

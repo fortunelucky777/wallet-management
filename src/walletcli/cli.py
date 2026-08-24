@@ -28,7 +28,7 @@ from .chains.ethereum import EthereumChain
 from .chains.tron import TronChain
 from .config import Config, config_path, mask_endpoint, vault_path, wallet_home
 from .derivation import derive_keyring, generate_mnemonic, normalize_mnemonic, validate_mnemonic
-from .swap import SwapClient, SwapError
+from .swap import SwapClient, SwapError, validate_swap_pair
 from .vault import Vault, VaultError, WrongPassphrase
 
 app = typer.Typer(
@@ -566,7 +566,7 @@ def swap(
     amount_opt: str = typer.Option(None, "--amount", "-m", help="Amount to swap."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompts."),
 ):
-    """Swap across chains (ERC20 ⇄ TRC20), e.g. USDT-ERC20 → USDT-TRC20."""
+    """Swap assets, same-chain or cross-chain, e.g. ETH → USDT-ERC20 or USDT-ERC20 → USDT-TRC20."""
     ui.rule("swap")
     cfg = Config.load()
     client = SwapClient(cfg.changenow_api_key)
@@ -576,11 +576,9 @@ def swap(
     info = vault.info(wallet_name)
 
     from_asset = pick_asset(from_key, "Swap [bold]from[/bold] which asset?")
-    cross = [a for a in asset_choices() if a.chain != from_asset.chain]
-    to_asset = pick_asset(to_key, "Receive which asset?", allowed=cross)
-    if to_asset.chain == from_asset.chain:
-        raise SwapError("Swaps here are cross-chain: pick assets on different networks "
-                        "(e.g. usdt-erc20 → usdt-trc20).")
+    others = [a for a in asset_choices() if a.key != from_asset.key]
+    to_asset = pick_asset(to_key, "Receive which asset?", allowed=others)
+    validate_swap_pair(from_asset, to_asset)
 
     source = wallet_address_on(info, from_asset.chain)
     destination = wallet_address_on(info, to_asset.chain)

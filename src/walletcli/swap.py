@@ -1,4 +1,5 @@
-"""Cross-chain swaps (ERC20 ⇄ TRC20) via the ChangeNOW exchange API.
+"""Asset swaps — same-chain (e.g. ETH → USDT-ERC20) or cross-chain
+(ERC20 ⇄ TRC20) — via the ChangeNOW exchange API.
 
 A swap works like every non-custodial bridge/exchange:
 
@@ -42,6 +43,17 @@ STATUS_LABELS = {
 
 class SwapError(Exception):
     """Swap API failure with a user-readable message."""
+
+
+def validate_swap_pair(from_asset: Asset, to_asset: Asset) -> None:
+    """Reject a nonsensical pair. Same-chain pairs (ETH → USDT-ERC20) and
+    cross-chain pairs (USDT-ERC20 → USDT-TRC20) are both fine; only swapping
+    an asset to itself is refused."""
+    if from_asset.key == to_asset.key:
+        raise SwapError(
+            f"Pick two different assets — swapping {from_asset.symbol} "
+            f"({from_asset.label}) to itself does nothing."
+        )
 
 
 @dataclass(frozen=True)
