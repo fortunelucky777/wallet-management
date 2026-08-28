@@ -37,13 +37,26 @@ for candidate in python3.13 python3.12 python3.11 python3.10 python3; do
     fi
 done
 [[ -n "$PYTHON" ]] || die "Python 3.10+ is required. Install it (e.g. 'sudo apt install python3') and re-run."
-ok "Using $("$PYTHON" --version) ($(command -v "$PYTHON"))"
 
-# 2. Verify the venv module works (Debian/Ubuntu ship it separately).
+# Resolve symlinks to the real interpreter. A venv records this path as its
+# 'home'; behind a symlink chain (e.g. ~/.local/bin -> a uv-managed CPython)
+# the venv's python cannot find its stdlib and dies with
+# "No module named 'encodings'".
+PYTHON="$("$PYTHON" -c 'import os, sys; print(os.path.realpath(sys.executable))')"
+ok "Using $("$PYTHON" --version) ($PYTHON)"
+
+# 2. Verify the venv module works (Debian/Ubuntu ship it separately) and that
+#    ensurepip can actually seed pip (present even when 'venv --help' passes).
 "$PYTHON" -m venv --help >/dev/null 2>&1 \
     || die "The 'venv' module is missing. On Debian/Ubuntu: sudo apt install python3-venv"
+"$PYTHON" -m ensurepip --version >/dev/null 2>&1 \
+    || die "Python's 'ensurepip' is unavailable, so venvs can't be created. On Debian/Ubuntu: sudo apt install python3-venv (or python3.X-venv matching your Python)."
 
 # 3. Create an isolated environment and install.
+if [[ -x "$VENV/bin/python" ]] && ! "$VENV/bin/python" -c 'import encodings' >/dev/null 2>&1; then
+    warn "Existing venv in $VENV is broken — recreating it."
+    rm -rf "$VENV"
+fi
 say "Creating isolated environment in $VENV …"
 mkdir -p "$APP_HOME" && chmod 700 "$APP_HOME"
 "$PYTHON" -m venv "$VENV"
